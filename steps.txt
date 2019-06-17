@@ -1,0 +1,193 @@
+PASOS PARA CREAR UNA APLICACIÓN CON DJANGO
+1.- django-admin startproject name_project .
+Este puede ser 'mysite'
+2.- Cambiar configuración en 'settings.py'
+	2.1.- Zona horaria
+	2.2.- Idioma
+	2.3.- STATIC_ROOT = os.path.join(BASE_DIR, 'static')
+	2.4.- ALLOWED_HOSTS
+3.- Crea la base de datos
+python manage.py migrate
+4.- python manage.py runserver
+5.- python manage.py startapp name_app
+Este puede ser 'myapp'
+6.- Agregar a INSTALLED_APPS en settings.py name_app
+7.- Agregar nuestros modelos a models.py
+8.- Cargar los modelos a la base de datos para crear las tablas 
+python manage.py makemigrations name_app
+9.- Aplica las migraciones 
+python manage.py migrate blog
+10.- Registrar nuestro modelo en admin.py
+admin.site.register(Post)
+11.- python manage.py createsuperuser
+12.- Visualiza tus modelos desde el admin de Django
+13.- Inicializa tu repositorio git
+14.- crea tu .gitignore y agrega todo lo que sea necesario
+La base de datos local es una de ellas asi como el venv, ej.
+*.pyc
+*~
+__pycache__
+db.sqlite3
+/static
+.DS_Store
+
+15.-Crea el repositorio en git
+16.- git remote add origin 
+17.- git push -u origin master
+
+
+pythonanywhere
+18.- Crear cuenta
+19.- Crear API Token
+20.- bash$ pip3.6 install --user pythonanywhere
+21.- $ pa_autoconfigure_django.py [repo git]
+22.- python manage.py 
+
+*hacemos git pull para actualizar la aplicacion*
+*usamos python manage.py collectstatic para actualizar los archivos estaticos*
+
+23.- crear la url de nuestro proyecto he importar las urls de nuestra aplicacion
+path('', include('myapp.urls')), 
+24.- Crear urls.py en myapp
+	importar path y views 
+	urlpatterns
+
+Estos pasos se repiten cada vez que queremos agregar un componente
+	path('', views.view_no_one, name='view_no_one'),
+25.- Crear la vista 
+def view_no_one(params):
+	return render(request, 'blog/post_list.html', {})
+
+26.- Crear carpeta de templates y dentro otra carpeta de myapp
+27.- Crear un fichero ./templates/myapp/base.html
+{% load static %}
+<html>
+    <head>
+        <title></title>
+        <link rel="stylesheet" href="{% static 'css/blog.css' %}">
+    </head>
+    <body>
+        <div class="page-header">
+            <h1><a href="/"></a></h1>
+        </div>
+        <div class="content container">
+            <div class="row">
+                <div class="col-md-8">
+                    {% block content %}
+                    {% endblock %}
+                </div>
+            </div>
+        </div>
+    </body>       
+</html>
+28.- crear el template view_no_one.html 
+{% extends 'myapp/base.html' %}
+{% block content %}{% endblock %}
+
+29.- python manage.py shell
+Esto para probar y jugar con los QuerySets y probar la base de datos sqlite3 local
+
+30.- Creamos datos en nuestras view y utilizamos estos datos en las platillas como datos dinámicos
+{{ }} {% %}
+
+31.- crear una carpeta 'static' dentro de la carpeta de myapp raiz y ahi otra carpeta de css
+
+32.- <h1><a href="{% url 'view_no_two' %}">{{ post.title }}</a></h1> 
+para crear un enlace a otra plantilla desde la pagina principal
+33.- Repetimos el segmento del paso #25
+
+Formularios
+34.- creamos forms.py dentro de myapp
+from django import forms
+from .models import mymodel
+class MiFormulario(forms.ModelForm):
+    class Meta:
+        model = mymodel
+        fields = ('title', 'text',)
+
+35.-  
+<form method="POST" class="post-form">{% csrf_token %}
+    {{ form.as_p }}
+	<button type="submit" class="save btn btn-default">Save</button>
+</form>
+36.- {% if user.is_authenticated %}
+37.- form = PostForm(request.POST)
+
+DESPLIEGUE EN IBMCLOUD 
+fuente: https://developer.ibm.com/tutorials/deploy-django-applications-to-ibm-cloud/
+1.- Crear una aplicacion en https://cloud.ibm.com/catalog/starters/python
+2.- Agregar a requirements.txt
+	dj-static==0.0.6
+	gunicorn==19.1.1
+
+3.- Usar la configuracion actual de wsgi.py (Cambiar myapp por el nombre la app)
+import os
+
+from django.core.wsgi import get_wsgi_application
+from dj_static import Cling
+
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "myapp.settings")
+
+application = Cling(get_wsgi_application())
+
+4.- Asegurarse de que este configurado los archivos estaticos en settings
+5.- Crear la carpeta  /myapp/management/commands 
+6.- agregar el commando dentro de la ultima carpeta creada ibmcloud_init.py
+{
+from django.conf import settings
+from django.core.management.base import BaseCommand
+import sys
+
+class Command(BaseCommand):
+
+    args = ''
+    help = 'Django deployment script - IBM Cloud'
+
+    def add_arguments(self, parser):
+
+        parser.add_argument('application_name', type=str)
+
+    def handle(self, *args, **options):
+
+        check = "Project successfully configured for: %s"
+        application_name = options['application_name']
+        base = settings.BASE_DIR
+        python_version = sys.version.split(' ')[0]
+        project_name = settings.WSGI_APPLICATION.split(".")[0]
+
+        try:
+            f = open(base + "/Procfile", "w")
+            f.write("web: python manage.py migrate && gunicorn {}.wsgi --log-file -".format(project_name))
+            f.close()
+
+        except IOError as e:
+            check = "Exception at creating Procfile :"
+            print ("failed to create Procfile {}".format(e))
+
+        try:
+            m = open(base + "/manifest.yml", "w")
+            m.write(" applications: \n  - name: {} ".format(application_name))
+            m.close()
+
+        except IOError as e:
+            check = "Exception at creating manifest.yml"
+            print ("failed to create manifest.yml - {}".format(e))
+
+        try:
+            v = open(base + "/runtime.txt", "w")
+            v.write("python-{}".format(python_version))
+            v.close()
+
+        except IOError as e:
+            check = "Exception at creating runtime.txt"
+            print ("failed to create runtime.txt - {}".format(e))
+
+        self.stdout.write(check % str(application_name))
+}
+
+7.- run the python manage.py ibmcloud_init 
+
+
+
+  
+ 
